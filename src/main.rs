@@ -1,6 +1,7 @@
 use iced::{
+    executor,
     widget::{column, container, horizontal_space, row, text, text_editor},
-    Sandbox, Settings, Theme,
+    Application, Command, Settings, Theme,
 };
 
 #[derive(Debug, Clone)]
@@ -12,8 +13,20 @@ struct Texteditor {
     content: text_editor::Content,
 }
 
-impl Sandbox for Texteditor {
+impl Application for Texteditor {
     type Message = Messages;
+    type Executor = executor::Default;
+    type Flags = ();
+    type Theme = Theme;
+
+    fn new(_flags: Self::Flags) -> (Texteditor, Command<Self::Message>) {
+        (
+            Texteditor {
+                content: text_editor::Content::with_text(include_str!("main.rs")),
+            },
+            Command::none(),
+        )
+    }
 
     fn title(&self) -> String {
         String::from("Hed")
@@ -23,16 +36,11 @@ impl Sandbox for Texteditor {
         Theme::Dark
     }
 
-    fn new() -> Self {
-        Texteditor {
-            content: text_editor::Content::with_text(include_str!("main.rs")),
-        }
-    }
-
-    fn update(&mut self, message: Self::Message) {
+    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Messages::Edit(action) => self.content.perform(action),
         };
+        Command::none()
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message> {
@@ -42,11 +50,11 @@ impl Sandbox for Texteditor {
 
         let pos = {
             let (line, col) = self.content.cursor_position();
-            let formatted = format!("{}:{}",line,col);
+            let formatted = format!("{}:{}", line, col);
             text(formatted)
         };
-    
-        let status_bar = row![horizontal_space(),pos];
+
+        let status_bar = row![horizontal_space(), pos];
         container(column![editor, status_bar]).padding(10).into()
     }
 }
