@@ -1,5 +1,5 @@
 use iced::{
-    widget::{container, text_editor},
+    widget::{column, container, horizontal_space, row, text, text_editor},
     Sandbox, Settings, Theme,
 };
 
@@ -39,7 +39,15 @@ impl Sandbox for Texteditor {
         let editor = text_editor(&self.content)
             .on_action(Messages::Edit)
             .height(800);
-        container(editor).padding(10).into()
+
+        let pos = {
+            let (line, col) = self.content.cursor_position();
+            let formatted = format!("{}:{}",line,col);
+            text(formatted)
+        };
+    
+        let status_bar = row![horizontal_space(),pos];
+        container(column![editor, status_bar]).padding(10).into()
     }
 }
 
