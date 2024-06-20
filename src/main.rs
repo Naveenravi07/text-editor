@@ -1,6 +1,8 @@
 use iced::{
     executor,
-    widget::{button, column, container, horizontal_space, row, text, text_editor},
+    highlighter::{self, Highlighter},
+    theme,
+    widget::{button, column, container, horizontal_space, row, text, text_editor, tooltip},
     Application, Command, Element, Font, Theme,
 };
 use rfd::AsyncFileDialog;
@@ -105,14 +107,26 @@ impl Application for Texteditor {
 
     fn view(&self) -> iced::Element<'_, Self::Message> {
         let controls = row![
-            action(new_icon(), Messages::New),
-            action(open_icon(), Messages::Open),
-            action(save_icon(), Messages::Save)
+            action(new_icon(), "New file", Messages::New),
+            action(open_icon(), "Open file", Messages::Open),
+            action(save_icon(), "Save file", Messages::Save)
         ]
         .spacing(10);
 
         let editor = text_editor(&self.content)
             .on_action(Messages::Edit)
+            .highlight::<Highlighter>(
+                highlighter::Settings {
+                    theme: highlighter::Theme::Base16Eighties,
+                    extension: self
+                        .path
+                        .as_ref()
+                        .and_then(|path| path.extension()?.to_str())
+                        .unwrap_or("rs")
+                        .to_string(),
+                },
+                |highlight, _theme| highlight.to_format(),
+            )
             .height(800);
 
         let status_bar = {
@@ -138,11 +152,20 @@ impl Application for Texteditor {
     }
 }
 
-fn action<'a>(el: Element<'a, Messages>, onpress: Messages) -> Element<'a, Messages> {
-    button(container(el).width(30).center_x().center_y())
-        .on_press(onpress)
-        .padding([5, 10])
-        .into()
+fn action<'a>(
+    el: Element<'a, Messages>,
+    label: &'a str,
+    onpress: Messages,
+) -> Element<'a, Messages> {
+    tooltip(
+        button(container(el).width(30).center_x().center_y())
+            .on_press(onpress)
+            .padding([5, 10]),
+        label,
+        tooltip::Position::Bottom,
+    )
+    .style(theme::Container::Box)
+    .into()
 }
 fn icon<'a>(codepoint: char) -> Element<'a, Messages> {
     const ICON_FONT: Font = Font::with_name("editor-icons");
@@ -206,6 +229,7 @@ async fn save_file(path: Option<PathBuf>, text: String) -> Result<PathBuf, Error
 
 fn main() -> iced::Result {
     Texteditor::run(iced::Settings {
+        default_font: Font::DEFAULT,
         fonts: vec![include_bytes!("../fonts/editor-icons.ttf")
             .as_slice()
             .into()],
