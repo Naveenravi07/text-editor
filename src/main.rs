@@ -21,6 +21,7 @@ enum Messages {
     Edit(text_editor::Action),
     FileOpened(Result<(PathBuf, Arc<String>), Error>),
     Open,
+    New,
 }
 
 struct Texteditor {
@@ -76,32 +77,44 @@ impl Application for Texteditor {
             }
 
             Messages::Open => Command::perform(pick_file(), Messages::FileOpened),
+            Messages::New => {
+                self.path = None;
+                self.content = text_editor::Content::new();
+                Command::none()
+            }
         }
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message> {
-        let controls = row![button("Open").on_press(Messages::Open)];
+        let controls = row![
+            button("New").on_press(Messages::New),
+            button("Open").on_press(Messages::Open)
+        ]
+        .spacing(10);
+
         let editor = text_editor(&self.content)
             .on_action(Messages::Edit)
             .height(800);
 
-       let path = match self.path.as_deref().and_then(Path::to_str) {
-           Some(path) => {
-               println!("Gottem path here {path}");
-               text(path)
-           },
-           None => text(""),
-       };
+        let status_bar = {
+            let status = if let Some(Error::IO(error)) = self.error {
+                text(error.to_string())
+            } else {
+                match self.path.as_deref().and_then(Path::to_str) {
+                    Some(path) => text(path),
+                    None => text("New file"),
+                }
+            };
 
-        let pos = {
-            let (line, col) = self.content.cursor_position();
-            let formatted = format!("{}:{}", line, col);
-            text(formatted)
+            let pos = {
+                let (line, col) = self.content.cursor_position();
+                let formatted = format!("{}:{}", line, col);
+                text(formatted)
+            };
+
+            row![status, horizontal_space(), pos]
         };
-
-        let status_bar = row![ path,horizontal_space(), pos];
-        container(column![controls, editor, status_bar])
-            .into()
+        container(column![controls, editor, status_bar]).into()
     }
 }
 
