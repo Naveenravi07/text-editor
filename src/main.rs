@@ -32,6 +32,7 @@ struct Texteditor {
     path: Option<PathBuf>,
     content: text_editor::Content,
     error: Option<Error>,
+    isdirty: bool,
 }
 
 impl Application for Texteditor {
@@ -46,6 +47,7 @@ impl Application for Texteditor {
                 content: text_editor::Content::new(),
                 error: None,
                 path: None,
+                isdirty: false,
             },
             Command::perform(load_file(default_file()), Messages::FileOpened),
         )
@@ -62,11 +64,13 @@ impl Application for Texteditor {
     fn update(&mut self, message: Self::Message) -> Command<Messages> {
         match message {
             Messages::Edit(action) => {
+                self.isdirty = self.isdirty || action.is_edit();
                 self.content.perform(action);
                 Command::none()
             }
 
             Messages::FileOpened(result) => {
+                self.isdirty = false;
                 match result {
                     Ok((path, content)) => {
                         println!("{}", &path.to_string_lossy());
@@ -83,6 +87,7 @@ impl Application for Texteditor {
             Messages::Open => Command::perform(pick_file(), Messages::FileOpened),
 
             Messages::New => {
+                self.isdirty = true;
                 self.path = None;
                 self.content = text_editor::Content::new();
                 Command::none()
@@ -95,6 +100,7 @@ impl Application for Texteditor {
 
             Messages::FileSaved(Ok(path)) => {
                 self.path = Some(path);
+                self.isdirty = false;
                 Command::none()
             }
 
@@ -107,9 +113,9 @@ impl Application for Texteditor {
 
     fn view(&self) -> iced::Element<'_, Self::Message> {
         let controls = row![
-            action(new_icon(), "New file", Messages::New),
-            action(open_icon(), "Open file", Messages::Open),
-            action(save_icon(), "Save file", Messages::Save)
+            action(new_icon(), "New file", Some(Messages::New)),
+            action(open_icon(), "Open file", Some(Messages::Open)),
+            action(save_icon(), "Save file",self.isdirty.then_some(Messages::Save))
         ]
         .spacing(10);
 
@@ -155,11 +161,18 @@ impl Application for Texteditor {
 fn action<'a>(
     el: Element<'a, Messages>,
     label: &'a str,
-    onpress: Messages,
+    onpress: Option<Messages>,
 ) -> Element<'a, Messages> {
+
+    let is_disabled = onpress.is_none();
     tooltip(
         button(container(el).width(30).center_x().center_y())
-            .on_press(onpress)
+            .style(if is_disabled {
+                theme::Button::Secondary
+            } else {
+                theme::Button::Primary
+            })
+            .on_press_maybe(onpress)
             .padding([5, 10]),
         label,
         tooltip::Position::Bottom,
