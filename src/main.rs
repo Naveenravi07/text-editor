@@ -6,7 +6,7 @@ use iced::{
 use rfd::AsyncFileDialog;
 use std::{
     env, io,
-    path::{self, Path, PathBuf},
+    path::{ Path, PathBuf},
     sync::Arc,
 };
 
@@ -23,6 +23,7 @@ enum Messages {
     Open,
     New,
     Save,
+    FileSaved(Result<(), Error>),
 }
 
 struct Texteditor {
@@ -85,14 +86,25 @@ impl Application for Texteditor {
                 Command::none()
             }
 
-            Messages::Save => Command::none(),
+            Messages::Save => Command::perform(
+                save_file(self.path.clone(), self.content.text()),
+                Messages::FileSaved,
+            ),
+
+            Messages::FileSaved(Ok(())) => Command::none(),
+
+            Messages::FileSaved(Err(error)) => {
+                self.error = Some(error);
+                Command::none()
+            }
         }
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message> {
         let controls = row![
             button("New").on_press(Messages::New),
-            button("Open").on_press(Messages::Open)
+            button("Open").on_press(Messages::Open),
+            button("Save").on_press(Messages::Save)
         ]
         .spacing(10);
 
@@ -113,8 +125,10 @@ impl Application for Texteditor {
             let pos = {
                 let (line, col) = self.content.cursor_position();
                 let formatted = format!("{}:{}", line, col);
+                println!("{formatted}");
                 text(formatted)
             };
+
 
             row![status, horizontal_space(), pos]
         };
@@ -151,12 +165,17 @@ async fn save_file(path: Option<PathBuf>, text: String) -> Result<(), Error> {
     let path = if let Some(path) = path {
         path
     } else {
-        let handle = AsyncFileDialog::new()
+        AsyncFileDialog::new()
             .set_title("Choose a file name ...")
             .save_file()
-            .await?
-        handle.path()
-    }
+            .await
+            .ok_or(Error::DialogClosed)
+            .map(|handle| handle.path().to_owned())?
+    };
+
+    tokio::fs::write(path, text.as_bytes())
+        .await
+        .map_err(|err| Error::IO(err.kind()))
 }
 
 fn main() -> iced::Result {
