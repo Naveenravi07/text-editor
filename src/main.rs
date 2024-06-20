@@ -6,7 +6,7 @@ use iced::{
 use rfd::AsyncFileDialog;
 use std::{
     env, io,
-    path::{Path, PathBuf},
+    path::{self, Path, PathBuf},
     sync::Arc,
 };
 
@@ -22,6 +22,7 @@ enum Messages {
     FileOpened(Result<(PathBuf, Arc<String>), Error>),
     Open,
     New,
+    Save,
 }
 
 struct Texteditor {
@@ -77,11 +78,14 @@ impl Application for Texteditor {
             }
 
             Messages::Open => Command::perform(pick_file(), Messages::FileOpened),
+
             Messages::New => {
                 self.path = None;
                 self.content = text_editor::Content::new();
                 Command::none()
             }
+
+            Messages::Save => Command::none(),
         }
     }
 
@@ -141,6 +145,18 @@ async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), Error> {
         .map_err(Error::IO)?;
 
     Ok((path, file_content))
+}
+
+async fn save_file(path: Option<PathBuf>, text: String) -> Result<(), Error> {
+    let path = if let Some(path) = path {
+        path
+    } else {
+        let handle = AsyncFileDialog::new()
+            .set_title("Choose a file name ...")
+            .save_file()
+            .await?
+        handle.path()
+    }
 }
 
 fn main() -> iced::Result {
