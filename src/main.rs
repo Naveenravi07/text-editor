@@ -5,9 +5,7 @@ use iced::{
 };
 use rfd::AsyncFileDialog;
 use std::{
-    env, io,
-    path::{ Path, PathBuf},
-    sync::Arc,
+    env, io, path::{ Path, PathBuf}, sync::Arc
 };
 
 #[derive(Clone, Debug)]
@@ -23,7 +21,7 @@ enum Messages {
     Open,
     New,
     Save,
-    FileSaved(Result<(), Error>),
+    FileSaved(Result<PathBuf, Error>),
 }
 
 struct Texteditor {
@@ -91,7 +89,10 @@ impl Application for Texteditor {
                 Messages::FileSaved,
             ),
 
-            Messages::FileSaved(Ok(())) => Command::none(),
+            Messages::FileSaved(Ok(path)) => {
+                self.path = Some(path);
+                Command::none()
+            }
 
             Messages::FileSaved(Err(error)) => {
                 self.error = Some(error);
@@ -161,7 +162,7 @@ async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), Error> {
     Ok((path, file_content))
 }
 
-async fn save_file(path: Option<PathBuf>, text: String) -> Result<(), Error> {
+async fn save_file(path: Option<PathBuf>, text: String) -> Result<PathBuf, Error> {
     let path = if let Some(path) = path {
         path
     } else {
@@ -173,9 +174,11 @@ async fn save_file(path: Option<PathBuf>, text: String) -> Result<(), Error> {
             .map(|handle| handle.path().to_owned())?
     };
 
-    tokio::fs::write(path, text.as_bytes())
+    let _ = tokio::fs::write(&path, text.as_bytes())
         .await
-        .map_err(|err| Error::IO(err.kind()))
+        .map_err(|err| Error::IO(err.kind()));
+
+        Ok(path)
 }
 
 fn main() -> iced::Result {
